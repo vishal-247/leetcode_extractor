@@ -164,18 +164,18 @@
     function renderResults(results) {
       const container = document.getElementById('results');
 
-      // Build CSV for download
-      const csvRows = ['Number,Title,Link'];
+      // Build TSV for download (problemUrl	topic	subTopic)
+      const csvRows = ['problemUrl\ttopic\tsubTopic'];
       results.forEach(r => {
-        if (!r.error) csvRows.push(`${r.number},"${r.title}",${r.link}`);
+        if (!r.error) csvRows.push(`${r.link}\t\t`);
       });
-      const csvBlob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      const csvBlob = new Blob([csvRows.join('\n')], { type: 'text/tab-separated-values' });
       const csvUrl = URL.createObjectURL(csvBlob);
 
       container.innerHTML = `
         <div class="toolbar">
           <span>${results.length} result(s)</span>
-          <a href="${csvUrl}" download="leetcode_questions.csv">
+          <a href="${csvUrl}" download="leetcode_questions.tsv">
             <button>⬇ Download CSV</button>
           </a>
         </div>
