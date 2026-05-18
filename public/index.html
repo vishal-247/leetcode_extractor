@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LeetCode Question Extractor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 1.6rem; color: #f5a623; margin-bottom: 8px; }
+    p.sub { color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 24px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 6px; }
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      padding: 10px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: #f5a623; }
+
+    .divider { text-align: center; color: #555; margin: 14px 0; font-size: 0.85rem; }
+
+    input[type="file"] {
+      background: #111;
+      border: 1px dashed #444;
+      border-radius: 6px;
+      padding: 10px;
+      width: 100%;
+      color: #aaa;
+      cursor: pointer;
+    }
+
+    button#fetchBtn {
+      margin-top: 18px;
+      width: 100%;
+      padding: 12px;
+      background: #f5a623;
+      color: #000;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button#fetchBtn:hover { background: #e0951a; }
+    button#fetchBtn:disabled { background: #555; color: #999; cursor: not-allowed; }
+
+    #status { margin-top: 12px; font-size: 0.85rem; color: #888; text-align: center; }
+
+    #results { max-width: 700px; margin: 24px auto 0; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .toolbar span { font-size: 0.85rem; color: #888; }
+    .toolbar button {
+      background: none;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .toolbar button:hover { border-color: #f5a623; color: #f5a623; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 10px 12px; background: #1a1a1a; color: #888; border-bottom: 1px solid #2a2a2a; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1f1f1f; vertical-align: middle; }
+    tr:hover td { background: #1f1f1f; }
+    a { color: #f5a623; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .error-row td { color: #e05555; }
+    .num { color: #888; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>🔍 LeetCode Extractor</h1>
+    <p class="sub">Enter question numbers to get titles and links.</p>
+
+    <label>Paste question numbers (one per line or comma-separated)</label>
+    <textarea id="numInput" placeholder="1&#10;2&#10;3&#10;or: 1, 5, 42, 100"></textarea>
+
+    <div class="divider">— or upload a .txt file —</div>
+
+    <input type="file" id="fileInput" accept=".txt" />
+
+    <button id="fetchBtn" onclick="fetchQuestions()">Extract Questions</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <script>
+    // Load file into textarea
+    document.getElementById('fileInput').addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById('numInput').value = e.target.result;
+      };
+      reader.readAsText(file);
+    });
+
+    async function fetchQuestions() {
+      const raw = document.getElementById('numInput').value.trim();
+      if (!raw) return alert('Please enter question numbers.');
+
+      // Parse numbers from text (supports newlines and commas)
+      const numbers = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+      const btn = document.getElementById('fetchBtn');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      btn.textContent = 'Fetching...';
+      status.textContent = 'Connecting to LeetCode (first load may take a few seconds)...';
+      document.getElementById('results').innerHTML = '';
+
+      try {
+        const res = await fetch('/api/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ numbers }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderResults(data.results);
+        status.textContent = `Done — ${data.results.filter(r => !r.error).length} found, ${data.results.filter(r => r.error).length} not found.`;
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Extract Questions';
+      }
+    }
+
+    function renderResults(results) {
+      const container = document.getElementById('results');
+
+      // Build CSV for download
+      const csvRows = ['Number,Title,Link'];
+      results.forEach(r => {
+        if (!r.error) csvRows.push(`${r.number},"${r.title}",${r.link}`);
+      });
+      const csvBlob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+      const csvUrl = URL.createObjectURL(csvBlob);
+
+      container.innerHTML = `
+        <div class="toolbar">
+          <span>${results.length} result(s)</span>
+          <a href="${csvUrl}" download="leetcode_questions.csv">
+            <button>⬇ Download CSV</button>
+          </a>
+        </div>
+        <table>
+          <thead>
+            <tr><th>#</th><th>Title</th><th>Link</th></tr>
+          </thead>
+          <tbody>
+            ${results.map(r => r.error
+              ? `<tr class="error-row"><td class="num">${r.number}</td><td colspan="2">${r.error}</td></tr>`
+              : `<tr>
+                  <td class="num">${r.number}</td>
+                  <td>${r.title}</td>
+                  <td><a href="${r.link}" target="_blank">Open ↗</a></td>
+                </tr>`
+            ).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+  </script>
+</body>
+</html>
